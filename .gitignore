@@ -1,0 +1,21 @@
+# Build outputs
+out/
+target/
+*.class
+
+# Nested repository copy
+POO/
+
+# Dependency downloads / local libs
+libs/
+
+# IDE metadata
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
