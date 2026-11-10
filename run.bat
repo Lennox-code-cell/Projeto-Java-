@@ -1,4 +1,14 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-java -cp out;libs\mysql-connector-j-8.4.0.jar br.com.biblioteca.Main
+where mvn >nul 2>nul
+if errorlevel 1 (
+  if exist "%USERPROFILE%\tools\apache-maven-3.10.0\bin\mvn.cmd" set "PATH=%USERPROFILE%\tools\apache-maven-3.10.0\bin;%PATH%"
+  where mvn >nul 2>nul
+  if errorlevel 1 (
+    echo Maven 3.9 ou superior nao encontrado no PATH.
+    exit /b 1
+  )
+)
+call mvn -q exec:java -Dexec.mainClass=br.com.biblioteca.Main
+exit /b %errorlevel%

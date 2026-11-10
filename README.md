@@ -28,13 +28,13 @@ Sistema desktop de gerenciamento bibliotecário em Java, com arquitetura MVC, Sw
 - MySQL instalado e em execução
 - Look and Feel FlatLaf, fornecido pelo Maven
 - JUnit 5 para os testes automatizados
-- As variáveis de ambiente `DB_URL`, `DB_USER` e `DB_PASSWORD`
+- As variáveis de ambiente `DB_USER` e `DB_PASSWORD`; `DB_URL` é opcional
 
 ## Como executar
 
 1. Configure o banco MySQL com `sql/biblioteca.sql` em uma instalação nova. Em uma instalação existente, revise o script antes de executá-lo; ele não é uma migração.
-2. Configure as variáveis de ambiente antes de executar a aplicação. Nenhum valor padrão ou credencial é mantido no código:
-   - `DB_URL`
+2. Configure as variáveis de ambiente antes de executar a aplicação. A URL padrão é `jdbc:mariadb://127.0.0.1:3306/biblioteca`; configure `DB_URL` apenas se precisar usar outra:
+   - `DB_URL` (opcional)
    - `DB_USER`
    - `DB_PASSWORD`
 3. Compile e empacote o projeto:
