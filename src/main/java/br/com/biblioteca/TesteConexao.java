@@ -1,4 +1,4 @@
-﻿package br.com.biblioteca;
+package br.com.biblioteca;
 
 /**
  * Classe auxiliar para validar a conexão com o banco de dados.

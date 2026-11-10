@@ -1,4 +1,4 @@
-﻿package br.com.biblioteca.controller;
+package br.com.biblioteca.controller;
 
 /**
  * Controla as operações relacionadas a Autor.

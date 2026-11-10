@@ -1,4 +1,4 @@
-# Biblioteca Fácil
+# Biblioteca
 
 Sistema desktop de gerenciamento bibliotecário em Java, com arquitetura MVC, Swing, JDBC e MySQL.
 
@@ -24,27 +24,40 @@ Sistema desktop de gerenciamento bibliotecário em Java, com arquitetura MVC, Sw
 ## Requisitos de execução
 
 - Java JDK 25+
+- Maven 3.9+
 - MySQL instalado e em execução
-- Driver MySQL Connector/J
+- Look and Feel FlatLaf, fornecido pelo Maven
+- JUnit 5 para os testes automatizados
+- As variáveis de ambiente `DB_URL`, `DB_USER` e `DB_PASSWORD`
 
 ## Como executar
 
-1. Abra o MySQL e crie o banco com o arquivo `sql/biblioteca.sql`.
-2. Configure as variáveis de ambiente antes de executar a aplicação. O endereço e o usuário têm valores padrão; a senha deve ser informada fora do código:
+1. Configure o banco MySQL com `sql/biblioteca.sql` em uma instalação nova. Em uma instalação existente, revise o script antes de executá-lo; ele não é uma migração.
+2. Configure as variáveis de ambiente antes de executar a aplicação. Nenhum valor padrão ou credencial é mantido no código:
    - `DB_URL`
    - `DB_USER`
    - `DB_PASSWORD`
-3. Compile o projeto:
+3. Compile e empacote o projeto:
 
-```bat
-build.cmd
+```powershell
+mvn clean package
+```
+
+Os testes que não dependem do MySQL podem ser executados com:
+
+```powershell
+mvn test
 ```
 
 4. Execute a aplicação:
 
-```bat
-run.bat
+```powershell
+mvn exec:java -Dexec.mainClass=br.com.biblioteca.Main
 ```
+
+O script `sql/migration_001_indexes.sql` adiciona um índice para acelerar
+os relatórios filtrados pela data do empréstimo. A migração é opcional,
+não é executada pela aplicação e deve ser aplicada uma única vez após backup.
 
 ## Observações
 
