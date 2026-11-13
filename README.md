@@ -1,148 +1,135 @@
 # Biblioteca
 
-Sistema desktop de gerenciamento de biblioteca em Java, desenvolvido com arquitetura MVC, Swing, JDBC e MySQL. O projeto centraliza o cadastro de autores, categorias, livros, exemplares, leitores, empréstimos e relatórios em uma interface desktop simples e funcional.
+[English version](README.en.md)
 
-## Visão geral
+Sistema desktop de gerenciamento de biblioteca desenvolvido em **Java 25**, com **Swing**, **JDBC** e **MySQL**. O projeto aplica separação de responsabilidades inspirada no padrão MVC e utiliza Maven para dependências, compilação e testes.
 
-A aplicação foi estruturada para facilitar a manutenção e a evolução do código:
+> Projeto acadêmico em evolução. Consulte a documentação antes de configurar o banco ou executar a aplicação.
 
-- `model`: entidades do domínio
-- `view`: telas Swing da interface gráfica
-- `controller`: validações e orquestração das regras de negócio
-- `dao`: acesso aos dados com JDBC
-- `connection`: configuração e abertura de conexão com o MySQL
+## Funcionalidades
 
-Além disso, o projeto conta com testes automatizados para regras de validação e fluxos principais de domínio.
+- Cadastro e gerenciamento de autores e categorias.
+- Cadastro e gerenciamento de livros e exemplares físicos.
+- Cadastro e gerenciamento de leitores.
+- Registro de empréstimos e devoluções.
+- Consulta de empréstimos ativos e atrasados.
+- Relatórios filtrados por período e situação.
+- Validações de dados, incluindo CPF e ISBN.
 
-## Funcionalidades principais
+## Tecnologias
 
-- Cadastro de autores
-- Cadastro de categorias
-- Cadastro de livros
-- Cadastro de exemplares
-- Cadastro e ativação/inativação de leitores
-- Registro de empréstimos e devoluções
-- Atualização automática da situação de empréstimos
-- Relatórios por período e situação
-- Validações de CPF, ISBN, e-mail, telefone e regras de negócio
+| Tecnologia | Uso |
+|---|---|
+| Java 25 | Linguagem e plataforma |
+| Swing + FlatLaf | Interface desktop |
+| JDBC | Acesso relacional |
+| MySQL 8.0.16+ | Banco de dados |
+| Maven | Dependências e build |
+| JUnit 5 | Testes automatizados |
 
-## Estrutura do projeto
+## Arquitetura
 
-```text
-POO/
-├── src/
-│   ├── main/java/br/com/biblioteca/
-│   │   ├── Main.java
-│   │   ├── connection/
-│   │   ├── controller/
-│   │   ├── dao/
-│   │   ├── model/
-│   │   ├── util/
-│   │   └── view/
-│   └── test/java/br/com/biblioteca/
-├── sql/
-│   ├── biblioteca.sql
-│   └── migration_001_indexes.sql
-├── pom.xml
-├── README.md
-├── run.bat
-├── build.cmd
-└── out/
-```
+O código-fonte fica em `src/main/java/br/com/biblioteca`:
+
+- `model`: entidades e objetos do domínio.
+- `view`: telas e componentes Swing.
+- `controller`: validações e coordenação dos casos de uso.
+- `dao`: persistência e consultas JDBC.
+- `connection`: configuração e abertura da conexão.
+- `util`: funções auxiliares e validações.
+
+O fluxo geral é: **View → Controller → DAO → MySQL**. Consulte [docs/architecture.md](docs/architecture.md).
 
 ## Requisitos
 
-- Java JDK 25+
-- Maven 3.9+
-- MySQL Server 8.0.16+ em execução
-- MySQL Connector/J 9.3.0 (gerenciado pelo Maven)
-- FlatLaf 3.6.1 (gerenciado pelo Maven)
-- JUnit 5 (gerenciado pelo Maven)
+- JDK 25 ou superior.
+- Maven 3.9 ou superior.
+- MySQL Server 8.0.16 ou superior.
+- Git (opcional, para clonar o projeto).
 
-## Configuração do banco
+## Configuração
 
-Este projeto foi padronizado para MySQL e aceita apenas URLs no formato `jdbc:mysql://`.
-
-Antes de executar a aplicação, crie o banco a partir do script:
+### 1. Obter o projeto
 
 ```bash
-mysql -u <usuario> -p < sql/biblioteca.sql
+git clone https://github.com/Lennox-code-cell/biblioteca.git
+cd biblioteca
 ```
 
-O script cria a base `biblioteca` e as tabelas principais. Ele não deve ser usado como migração em um banco já existente sem cuidado.
+### 2. Preparar o banco
 
-### Variáveis de ambiente
+O script inicial está em `sql/biblioteca.sql`. Ele cria o banco `biblioteca` e suas tabelas, mas **não inclui registros de demonstração**.
 
-A aplicação lê as credenciais do banco via variáveis de ambiente:
+Em uma instalação nova, execute:
 
-- `DB_URL` (opcional; padrão: `jdbc:mysql://127.0.0.1:3306/biblioteca`)
-- `DB_USER` (obrigatória)
-- `DB_PASSWORD` (obrigatória)
+```bash
+mysql -u SEU_USUARIO -p < sql/biblioteca.sql
+```
 
-Exemplo no PowerShell:
+Se o banco já existe e contém dados, não execute o script sem revisar seu conteúdo e fazer backup. Consulte [docs/database.md](docs/database.md).
+
+### 3. Configurar as credenciais
+
+A aplicação lê as variáveis de ambiente:
+
+| Variável | Obrigatória | Descrição |
+|---|---:|---|
+| `DB_USER` | Sim | Usuário do MySQL |
+| `DB_PASSWORD` | Sim | Senha do usuário |
+| `DB_URL` | Não | URL JDBC; padrão `jdbc:mysql://127.0.0.1:3306/biblioteca` |
+
+Exemplo no PowerShell (a senha será solicitada sem ficar escrita no comando):
 
 ```powershell
 $env:DB_URL = "jdbc:mysql://127.0.0.1:3306/biblioteca"
 $env:DB_USER = "biblioteca_app"
-$env:DB_PASSWORD = (New-Object System.Net.NetworkCredential("", (Read-Host "Senha do MySQL" -AsSecureString))).Password
+$secure = Read-Host "Senha do MySQL" -AsSecureString
+$env:DB_PASSWORD = [System.Net.NetworkCredential]::new("", $secure).Password
 ```
 
-Importante:
+Não publique senhas, arquivos `.env`, dumps reais ou dados pessoais. Use um usuário de banco com permissões limitadas ao schema da aplicação.
 
-- nunca deixe credenciais embutidas em código ou na URL
-- `DB_URL` não deve conter usuário/senha no próprio texto
-- use um usuário com permissões mínimas necessárias para o banco da aplicação
-- a senha do MySQL exposta em repositórios deve ser trocada imediatamente
+## Executar
 
-## Como executar
-
-### 1) Testar o projeto
+Na raiz do projeto:
 
 ```bash
 mvn clean test
-```
-
-### 2) Compilar o pacote
-
-```bash
 mvn clean package
-```
-
-### 3) Executar a aplicação
-
-```bash
 mvn exec:java -Dexec.mainClass=br.com.biblioteca.Main
 ```
 
-No Windows, também é possível usar os scripts auxiliares:
+No Windows, os scripts `build.cmd` e `run.bat` também podem ser utilizados.
 
-```cmd
-run.bat
+## Estrutura
+
+```text
+biblioteca/
+├── docs/
+├── sql/
+├── src/
+│   ├── main/java/br/com/biblioteca/
+│   └── test/java/br/com/biblioteca/
+├── .github/workflows/
+├── pom.xml
+├── README.md
+└── README.en.md
 ```
 
-```cmd
-build.cmd
-```
+## Testes e integração contínua
 
-## Fluxo principal do sistema
+Execute `mvn clean test` localmente. O GitHub Actions também executa a suíte de testes em pushes e pull requests direcionados à branch `main`.
 
-1. Cadastrar autor e categoria
-2. Cadastrar livro
-3. Cadastrar exemplar
-4. Cadastrar leitor
-5. Registrar empréstimo
-6. Registrar devolução
-7. Consultar relatórios por período e situação
+## Documentação
 
-## Migrações e manutenção do banco
+- [Arquitetura](docs/architecture.md)
+- [Banco de dados](docs/database.md)
+- [English README](README.en.md)
 
-O arquivo `sql/migration_001_indexes.sql` adiciona índices para aprimorar relatórios por data de empréstimo. Ele é opcional e deve ser aplicado manualmente, após backup do banco, quando necessário.
+## Segurança
 
-Nenhum script de migração é executado automaticamente pela aplicação.
+Se alguma credencial real já foi commitada, troque-a imediatamente. Remover a senha do código atual não apaga cópias existentes no histórico Git. A limpeza do histórico exige planejamento, backup e coordenação com todos os clones; não foi realizada nesta organização.
 
-## Observações
+## Status
 
-- O projeto segue o padrão MVC com separação clara de responsabilidades
-- A interface gráfica é construída com Swing + FlatLaf
-- Os acessos ao banco são feitos por JDBC e DAO
-- O código foi organizado para facilitar manutenção, testes e expansão futura
+O projeto está em desenvolvimento. Funcionalidades, documentação e testes podem mudar conforme novas versões forem implementadas.
