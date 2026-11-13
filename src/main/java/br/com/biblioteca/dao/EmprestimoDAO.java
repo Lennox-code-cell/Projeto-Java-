@@ -205,22 +205,164 @@ public class EmprestimoDAO {
      * @throws SQLException Caso ocorra um erro na atualização.
      */
     public void atualizar(Emprestimo emprestimo) throws SQLException {
-        validarEmprestimo(emprestimo);
-        if (emprestimo.getIdEmprestimo() <= 0) {
+        if (emprestimo == null || emprestimo.getIdEmprestimo() <= 0) {
             throw new IllegalArgumentException("Selecione um empréstimo válido.");
         }
-        String sql = "UPDATE emprestimo SET data_emprestimo = ?, data_prevista = ? "
-                + "WHERE id_emprestimo = ? AND data_devolucao IS NULL "
-                + "AND situacao IN ('ativo', 'atrasado')";
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setDate(1, Date.valueOf(emprestimo.getDataEmprestimo()));
-            stmt.setDate(2, Date.valueOf(emprestimo.getDataPrevista()));
-            stmt.setInt(3, emprestimo.getIdEmprestimo());
-            if (stmt.executeUpdate() != 1) {
-                throw new SQLException("Empréstimo inexistente ou já devolvido.");
+        validarDatasEmprestimo(emprestimo.getDataEmprestimo(), emprestimo.getDataPrevista());
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                int idExemplar;
+                try (PreparedStatement stmt = conn.prepareStatement(
+                        "SELECT id_exemplar FROM emprestimo "
+                                + "WHERE id_emprestimo = ? AND data_devolucao IS NULL "
+                                + "AND situacao IN ('ativo', 'atrasado') FOR UPDATE")) {
+                    stmt.setInt(1, emprestimo.getIdEmprestimo());
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        if (!rs.next()) {
+                            throw new SQLException("Empréstimo inexistente ou já finalizado.");
+                        }
+                        idExemplar = rs.getInt("id_exemplar");
+                    }
+                }
+
+                try (PreparedStatement stmt = conn.prepareStatement(
+                        "SELECT situacao FROM exemplar WHERE id_exemplar = ? FOR UPDATE")) {
+                    stmt.setInt(1, idExemplar);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        if (!rs.next() || !"emprestado".equalsIgnoreCase(rs.getString("situacao"))) {
+                            throw new SQLException(
+                                    "O exemplar associado não está marcado como emprestado."
+                            );
+                        }
+                    }
+                }
+
+                String sql = "UPDATE emprestimo SET data_emprestimo = ?, data_prevista = ? "
+                        + "WHERE id_emprestimo = ? AND data_devolucao IS NULL "
+                        + "AND situacao IN ('ativo', 'atrasado')";
+                try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                    stmt.setDate(1, Date.valueOf(emprestimo.getDataEmprestimo()));
+                    stmt.setDate(2, Date.valueOf(emprestimo.getDataPrevista()));
+                    stmt.setInt(3, emprestimo.getIdEmprestimo());
+                    if (stmt.executeUpdate() > 1) {
+                        throw new SQLException("Empréstimo inexistente ou já finalizado.");
+                    }
+                }
+                conn.commit();
+            } catch (SQLException | RuntimeException ex) {
+                rollback(conn, ex);
+                throw ex;
             }
         }
+    }
+
+    /**
+     * Exclui um empréstimo e, se ainda estiver aberto, libera seu exemplar.
+     *
+     * @param idEmprestimo Identificador do empréstimo.
+     * @throws SQLException Caso ocorra um erro na exclusão ou na liberação.
+     */
+    public void excluir(int idEmprestimo) throws SQLException {
+        if (idEmprestimo <= 0) {
+            throw new IllegalArgumentException("Selecione um empréstimo válido.");
+        }
+
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                int idExemplar;
+                boolean emAberto;
+                try (PreparedStatement stmt = conn.prepareStatement(
+                        "SELECT id_exemplar, data_devolucao FROM emprestimo "
+                                + "WHERE id_emprestimo = ? FOR UPDATE")) {
+                    stmt.setInt(1, idEmprestimo);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        if (!rs.next()) {
+                            throw new SQLException("Empréstimo não encontrado.");
+                        }
+                        idExemplar = rs.getInt("id_exemplar");
+                        emAberto = rs.getDate("data_devolucao") == null;
+                    }
+                }
+
+                if (emAberto) {
+                    try (PreparedStatement stmt = conn.prepareStatement(
+                            "SELECT situacao FROM exemplar WHERE id_exemplar = ? FOR UPDATE")) {
+                        stmt.setInt(1, idExemplar);
+                        try (ResultSet rs = stmt.executeQuery()) {
+                            if (!rs.next() || !"emprestado".equalsIgnoreCase(
+                                    rs.getString("situacao"))) {
+                                throw new SQLException(
+                                        "O exemplar associado não está marcado como emprestado. "
+                                                + "O cancelamento não foi realizado."
+                                );
+                            }
+                        }
+                    }
+                }
+
+                try (PreparedStatement stmt = conn.prepareStatement(
+                        "DELETE FROM emprestimo WHERE id_emprestimo = ?")) {
+                    stmt.setInt(1, idEmprestimo);
+                    if (stmt.executeUpdate() != 1) {
+                        throw new SQLException("Não foi possível excluir o empréstimo.");
+                    }
+                }
+
+                if (emAberto) {
+                    boolean outroEmprestimoAtivo;
+                    try (PreparedStatement stmt = conn.prepareStatement(
+                            "SELECT 1 FROM emprestimo WHERE id_exemplar = ? "
+                                    + "AND data_devolucao IS NULL LIMIT 1")) {
+                        stmt.setInt(1, idExemplar);
+                        try (ResultSet rs = stmt.executeQuery()) {
+                            outroEmprestimoAtivo = rs.next();
+                        }
+                    }
+
+                    if (!outroEmprestimoAtivo) {
+                        try (PreparedStatement stmt = conn.prepareStatement(
+                                "UPDATE exemplar SET situacao = 'disponivel' "
+                                        + "WHERE id_exemplar = ? AND situacao = 'emprestado'")) {
+                            stmt.setInt(1, idExemplar);
+                            if (stmt.executeUpdate() != 1) {
+                                throw new SQLException(
+                                        "Não foi possível liberar o exemplar do empréstimo."
+                                );
+                            }
+                        }
+                    }
+                }
+                conn.commit();
+            } catch (SQLException | RuntimeException ex) {
+                rollback(conn, ex);
+                throw ex;
+            }
+        }
+    }
+
+    /** Consulta empréstimos finalizados e em aberto para a tela de gerenciamento. */
+    public List<EmprestimoRelatorio> listarTodosDetalhados() throws SQLException {
+        List<EmprestimoRelatorio> lista = new ArrayList<>();
+        String sql = "SELECT e.id_emprestimo, l.nome, li.titulo, ex.codigo, "
+                + "e.data_emprestimo, e.data_prevista, e.data_devolucao, "
+                + "CASE WHEN e.data_devolucao IS NOT NULL THEN 'devolvido' "
+                + "WHEN e.data_prevista < CURRENT_DATE THEN 'atrasado' "
+                + "ELSE 'ativo' END AS situacao "
+                + "FROM emprestimo e "
+                + "JOIN leitor l ON l.id_leitor = e.id_leitor "
+                + "JOIN exemplar ex ON ex.id_exemplar = e.id_exemplar "
+                + "JOIN livro li ON li.id_livro = ex.id_livro "
+                + "ORDER BY e.data_emprestimo DESC, e.id_emprestimo DESC";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+            while (rs.next()) {
+                lista.add(mapearRelatorio(rs));
+            }
+        }
+        return lista;
     }
 
     /**
@@ -312,10 +454,20 @@ public class EmprestimoDAO {
                 || emprestimo.getDataPrevista() == null) {
             throw new IllegalArgumentException("Informe leitor, exemplar e as duas datas.");
         }
-        if (emprestimo.getDataEmprestimo().isAfter(LocalDate.now())) {
+        validarDatasEmprestimo(emprestimo.getDataEmprestimo(), emprestimo.getDataPrevista());
+    }
+
+    private static void validarDatasEmprestimo(
+            LocalDate dataEmprestimo,
+            LocalDate dataPrevista
+    ) {
+        if (dataEmprestimo == null || dataPrevista == null) {
+            throw new IllegalArgumentException("Informe as duas datas do empréstimo.");
+        }
+        if (dataEmprestimo.isAfter(LocalDate.now())) {
             throw new IllegalArgumentException("A data do empréstimo não pode estar no futuro.");
         }
-        if (emprestimo.getDataPrevista().isBefore(emprestimo.getDataEmprestimo())) {
+        if (dataPrevista.isBefore(dataEmprestimo)) {
             throw new IllegalArgumentException(
                     "A data prevista não pode ser anterior à data do empréstimo."
             );

@@ -29,4 +29,23 @@ class EmprestimoControllerTest {
         assertThrows(IllegalArgumentException.class,
                 () -> controller.registrarDevolucao(1, hoje.plusDays(1)));
     }
+
+    @Test
+    void rejeitaAlteracaoComIdentificadorOuDatasInvalidasSemAcessarBanco() {
+        LocalDate hoje = LocalDate.now();
+        assertThrows(IllegalArgumentException.class,
+                () -> controller.atualizarEmprestimo(0, hoje, hoje));
+        assertThrows(IllegalArgumentException.class,
+                () -> controller.atualizarEmprestimo(1, null, hoje));
+        assertThrows(IllegalArgumentException.class,
+                () -> controller.atualizarEmprestimo(1, hoje.plusDays(1), hoje.plusDays(2)));
+        assertThrows(IllegalArgumentException.class,
+                () -> controller.atualizarEmprestimo(1, hoje, hoje.minusDays(1)));
+    }
+
+    @Test
+    void rejeitaExclusaoComIdentificadorInvalidoSemAcessarBanco() {
+        assertThrows(IllegalArgumentException.class,
+                () -> controller.excluirEmprestimo(0));
+    }
 }

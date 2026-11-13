@@ -12,6 +12,7 @@ import br.com.biblioteca.model.Exemplar;
 import br.com.biblioteca.model.Livro;
 
 import javax.swing.*;
+import javax.swing.plaf.basic.BasicComboBoxEditor;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.sql.SQLException;
@@ -32,8 +33,7 @@ public class ExemplarView extends JPanel {
     // Controller utilizado para consultar os livros cadastrados.
     private final LivroController livroController = new LivroController();
 
-    // JComboBox utilizado para selecionar o livro ao qual
-    // o exemplar estará associado.
+    // Seletor editável para localizar o livro pelo ISBN.
     private final JComboBox<Livro> comboLivro = new JComboBox<>();
 
     // Campo de texto utilizado para informar o código do exemplar.
@@ -60,6 +60,7 @@ public class ExemplarView extends JPanel {
         // Associa o modelo de dados à tabela.
         tabela.setModel(tableModel);
         tabela.getColumnModel().getColumn(3).setCellRenderer(new StatusCellRenderer());
+        configurarSeletorLivro();
 
         // Cria o painel do formulário com 4 linhas e 2 colunas.
         JPanel form = new JPanel(new GridLayout(4, 2, 8, 8));
@@ -67,8 +68,8 @@ public class ExemplarView extends JPanel {
         // Adiciona um título ao formulário.
         form.setBorder(BorderFactory.createTitledBorder("Cadastro de exemplar"));
 
-        // Adiciona o campo de seleção do livro.
-        form.add(new JLabel("Livro:"));
+        // Adiciona o campo de seleção do livro pelo ISBN.
+        form.add(new JLabel("ISBN do livro:"));
         form.add(comboLivro);
 
         // Adiciona o campo de código do exemplar.
@@ -138,14 +139,15 @@ public class ExemplarView extends JPanel {
     private void salvar() {
         try {
 
-            // Recupera o livro selecionado no JComboBox.
-            Livro livro = (Livro) comboLivro.getSelectedItem();
+            Livro livro = obterLivroInformado();
 
-            // Verifica se algum livro foi selecionado.
+            // Verifica se o ISBN informado corresponde a um livro cadastrado.
             if (livro == null) {
 
-                // Exibe uma mensagem solicitando a seleção de um livro.
-                JOptionPane.showMessageDialog(this, "Selecione um livro.");
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Informe ou selecione o ISBN de um livro cadastrado."
+                );
 
                 // Interrompe o método.
                 return;
@@ -204,8 +206,7 @@ public class ExemplarView extends JPanel {
 
         try {
 
-            // Recupera o livro selecionado no JComboBox.
-            Livro livro = (Livro) comboLivro.getSelectedItem();
+            Livro livro = obterLivroInformado();
 
             // Recupera o ID do exemplar na primeira coluna da tabela.
             int id = Integer.parseInt(
@@ -215,7 +216,10 @@ public class ExemplarView extends JPanel {
             // Verifica se algum livro foi selecionado.
             if (livro == null) {
 
-                JOptionPane.showMessageDialog(this, "Selecione um livro.");
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Informe ou selecione o ISBN de um livro cadastrado."
+                );
 
                 return;
             }
@@ -332,6 +336,77 @@ public class ExemplarView extends JPanel {
                     JOptionPane.ERROR_MESSAGE
             );
         }
+    }
+
+    private void configurarSeletorLivro() {
+        comboLivro.setEditable(true);
+        comboLivro.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(
+                    JList<?> lista,
+                    Object valor,
+                    int indice,
+                    boolean selecionado,
+                    boolean foco
+            ) {
+                super.getListCellRendererComponent(
+                        lista,
+                        valor,
+                        indice,
+                        selecionado,
+                        foco
+                );
+                if (valor instanceof Livro livro) {
+                    String isbn = livro.getIsbn() == null || livro.getIsbn().isBlank()
+                            ? "Sem ISBN"
+                            : livro.getIsbn();
+                    setText(isbn + " - " + livro.getTitulo());
+                }
+                return this;
+            }
+        });
+        comboLivro.setEditor(new BasicComboBoxEditor() {
+            @Override
+            public void setItem(Object item) {
+                if (item instanceof Livro livro) {
+                    editor.setText(livro.getIsbn() == null || livro.getIsbn().isBlank()
+                            ? livro.getTitulo()
+                            : livro.getIsbn());
+                } else {
+                    super.setItem(item);
+                }
+            }
+        });
+    }
+
+    private Livro obterLivroInformado() {
+        Object itemSelecionado = comboLivro.getSelectedItem();
+        if (itemSelecionado instanceof Livro livro) {
+            return livro;
+        }
+
+        Object itemEditado = comboLivro.getEditor().getItem();
+        String valor = itemEditado == null ? "" : itemEditado.toString().trim();
+        if (valor.isEmpty()) {
+            return null;
+        }
+
+        String isbnInformado = valor.replaceAll("[-\\s]", "");
+        for (int i = 0; i < comboLivro.getItemCount(); i++) {
+            Livro livro = comboLivro.getItemAt(i);
+            String isbnCadastrado = livro.getIsbn();
+            if (isbnCadastrado != null
+                    && isbnCadastrado.replaceAll("[-\\s]", "")
+                    .equalsIgnoreCase(isbnInformado)) {
+                return livro;
+            }
+            if ((isbnCadastrado == null || isbnCadastrado.isBlank())
+                    && livro.getTitulo() != null
+                    && livro.getTitulo().equalsIgnoreCase(valor)) {
+                return livro;
+            }
+        }
+        return null;
     }
 
     // Método responsável por carregar os exemplares na tabela.

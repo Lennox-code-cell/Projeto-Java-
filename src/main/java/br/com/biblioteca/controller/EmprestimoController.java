@@ -125,6 +125,40 @@ public class EmprestimoController {
         emprestimoDAO.registrarDevolucao(idEmprestimo, dataDevolucao);
     }
 
+    public void atualizarEmprestimo(
+            int idEmprestimo,
+            LocalDate dataEmprestimo,
+            LocalDate dataPrevista
+    ) throws SQLException {
+        if (idEmprestimo <= 0) {
+            throw new IllegalArgumentException("Selecione um empréstimo válido.");
+        }
+        if (dataEmprestimo == null || dataPrevista == null) {
+            throw new IllegalArgumentException("Informe as duas datas do empréstimo.");
+        }
+        if (dataEmprestimo.isAfter(LocalDate.now())) {
+            throw new IllegalArgumentException("A data do empréstimo não pode estar no futuro.");
+        }
+        if (dataPrevista.isBefore(dataEmprestimo)) {
+            throw new IllegalArgumentException(
+                    "A data prevista não pode ser anterior à data do empréstimo."
+            );
+        }
+
+        Emprestimo emprestimo = new Emprestimo();
+        emprestimo.setIdEmprestimo(idEmprestimo);
+        emprestimo.setDataEmprestimo(dataEmprestimo);
+        emprestimo.setDataPrevista(dataPrevista);
+        emprestimoDAO.atualizar(emprestimo);
+    }
+
+    public void excluirEmprestimo(int idEmprestimo) throws SQLException {
+        if (idEmprestimo <= 0) {
+            throw new IllegalArgumentException("Selecione um empréstimo válido.");
+        }
+        emprestimoDAO.excluir(idEmprestimo);
+    }
+
     public List<Leitor> listarLeitoresAtivos() throws SQLException {
         return leitorDAO.listarAtivos();
     }
@@ -135,5 +169,9 @@ public class EmprestimoController {
 
     public List<EmprestimoRelatorio> listarEmprestimosAtivos() throws SQLException {
         return emprestimoDAO.listarAtivos();
+    }
+
+    public List<EmprestimoRelatorio> listarTodosEmprestimos() throws SQLException {
+        return emprestimoDAO.listarTodosDetalhados();
     }
 }

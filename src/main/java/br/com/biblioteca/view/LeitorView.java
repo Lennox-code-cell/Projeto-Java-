@@ -9,6 +9,10 @@ import br.com.biblioteca.model.Leitor;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.text.AbstractDocument;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DocumentFilter;
 import java.awt.*;
 import java.sql.SQLException;
 import java.util.List;
@@ -62,6 +66,9 @@ public class LeitorView extends JPanel {
 
     // Construtor responsável por configurar a interface gráfica.
     public LeitorView() {
+
+        limitarEntradaNumerica(txtCpf, 11, 14);
+        limitarEntradaNumerica(txtTelefone, 13, 19);
 
         // Define o layout principal com espaçamento de 10 pixels.
         setLayout(new BorderLayout(10, 10));
@@ -166,6 +173,47 @@ public class LeitorView extends JPanel {
 
         // Carrega os leitores cadastrados ao abrir a tela.
         carregarTabela();
+    }
+
+    private void limitarEntradaNumerica(
+            JTextField campo,
+            int maxDigitos,
+            int maxCaracteres
+    ) {
+        ((AbstractDocument) campo.getDocument()).setDocumentFilter(new DocumentFilter() {
+            @Override
+            public void insertString(
+                    FilterBypass bypass,
+                    int offset,
+                    String texto,
+                    AttributeSet atributos
+            ) throws BadLocationException {
+                replace(bypass, offset, 0, texto, atributos);
+            }
+
+            @Override
+            public void replace(
+                    FilterBypass bypass,
+                    int offset,
+                    int comprimento,
+                    String texto,
+                    AttributeSet atributos
+            ) throws BadLocationException {
+                String atual = bypass.getDocument().getText(
+                        0,
+                        bypass.getDocument().getLength()
+                );
+                String inserido = texto == null ? "" : texto;
+                String proposto = atual.substring(0, offset)
+                        + inserido
+                        + atual.substring(offset + comprimento);
+
+                if (proposto.length() <= maxCaracteres
+                        && proposto.replaceAll("\\D", "").length() <= maxDigitos) {
+                    bypass.replace(offset, comprimento, inserido, atributos);
+                }
+            }
+        });
     }
 
     // Método responsável por cadastrar um novo leitor.

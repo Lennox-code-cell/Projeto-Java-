@@ -3,13 +3,16 @@ package br.com.biblioteca.view;
 
 // Importa o Controller responsável pelas regras e operações de empréstimo.
 import br.com.biblioteca.controller.EmprestimoController;
+import br.com.biblioteca.controller.LivroController;
 
 // Importa os Models utilizados nos campos de seleção.
 import br.com.biblioteca.model.Exemplar;
+import br.com.biblioteca.model.Livro;
 import br.com.biblioteca.model.Leitor;
 import br.com.biblioteca.model.EmprestimoRelatorio;
 
 import javax.swing.*;
+import javax.swing.plaf.basic.BasicComboBoxEditor;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.sql.SQLException;
@@ -29,6 +32,8 @@ public class EmprestimoView extends JPanel {
 
     // Controller responsável por coordenar as operações de empréstimo.
     private final EmprestimoController controller = new EmprestimoController();
+    private final LivroController livroController = new LivroController();
+    private List<Livro> livros = List.of();
 
     // JComboBox que permite selecionar um leitor cadastrado.
     private final JComboBox<Leitor> comboLeitor = new JComboBox<>();
@@ -52,6 +57,9 @@ public class EmprestimoView extends JPanel {
     private final JTable tabela = new JTable();
     private final JButton botaoEmprestar = new JButton("Emprestar");
     private final JButton botaoDevolver = new JButton("Registrar devolução");
+    private final JButton botaoAlterar = new JButton("Alterar");
+    private final JButton botaoExcluir = new JButton("Excluir/Cancelar");
+    private List<EmprestimoRelatorio> emprestimos = List.of();
 
     // Modelo que define as colunas exibidas na tabela.
     private final DefaultTableModel tableModel = new DefaultTableModel(
@@ -76,6 +84,8 @@ public class EmprestimoView extends JPanel {
         // Associa o modelo de dados à tabela.
         tabela.setModel(tableModel);
         tabela.getColumnModel().getColumn(6).setCellRenderer(new StatusCellRenderer());
+        tabela.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        configurarSeletorExemplar();
 
         // Cria o painel do formulário com 5 linhas e 2 colunas.
         JPanel form = new JPanel(new GridLayout(5, 2, 8, 8));
@@ -87,8 +97,8 @@ public class EmprestimoView extends JPanel {
         form.add(new JLabel("Leitor:"));
         form.add(comboLeitor);
 
-        // Adiciona o campo de seleção do exemplar.
-        form.add(new JLabel("Exemplar disponível:"));
+        // Adiciona o campo de seleção do exemplar pelo ISBN.
+        form.add(new JLabel("ISBN do livro:"));
         form.add(comboExemplar);
 
         // Adiciona o campo da data do empréstimo.
@@ -106,10 +116,19 @@ public class EmprestimoView extends JPanel {
         // Define as ações executadas ao clicar nos botões.
         botaoEmprestar.addActionListener(e -> emprestar());
         botaoDevolver.addActionListener(e -> devolver());
+        botaoAlterar.addActionListener(e -> alterar());
+        botaoExcluir.addActionListener(e -> excluir());
+        tabela.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                carregarEmprestimoSelecionado();
+            }
+        });
 
         // Adiciona os botões ao painel.
         botoes.add(botaoEmprestar);
         botoes.add(botaoDevolver);
+        botoes.add(botaoAlterar);
+        botoes.add(botaoExcluir);
 
         // Adiciona o painel de botões ao formulário.
         form.add(botoes);
@@ -127,9 +146,12 @@ public class EmprestimoView extends JPanel {
     private void emprestar() {
         try {
             Leitor leitor = (Leitor) comboLeitor.getSelectedItem();
-            Exemplar exemplar = (Exemplar) comboExemplar.getSelectedItem();
+            Exemplar exemplar = obterExemplarInformado();
             if (leitor == null || exemplar == null) {
-                JOptionPane.showMessageDialog(this, "Selecione um leitor e um exemplar.");
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Selecione um leitor e informe ou selecione o ISBN de um exemplar disponível."
+                );
                 return;
             }
             int idExemplar = exemplar.getIdExemplar();
@@ -172,11 +194,82 @@ public class EmprestimoView extends JPanel {
         ) != JOptionPane.YES_OPTION) {
             return;
         }
-        int id = (int) tabela.getValueAt(row, 0);
+        EmprestimoRelatorio selecionado = emprestimoSelecionado();
+        if (selecionado == null) {
+            JOptionPane.showMessageDialog(this, "Selecione um empréstimo para registrar a devolução.");
+            return;
+        }
+        int id = selecionado.idEmprestimo();
         iniciarOperacao(
                 () -> controller.registrarDevolucao(id, LocalDate.now()),
                 "Devolução registrada com sucesso!"
         );
+    }
+
+    private void alterar() {
+        EmprestimoRelatorio selecionado = emprestimoSelecionado();
+        if (selecionado == null) {
+            JOptionPane.showMessageDialog(this, "Selecione um empréstimo em aberto para alterar.");
+            return;
+        }
+        if (selecionado.dataDevolucao() != null) {
+            JOptionPane.showMessageDialog(this, "Empréstimos finalizados não podem ser alterados.");
+            return;
+        }
+        try {
+            LocalDate dataEmprestimo = LocalDate.parse(txtDataEmprestimo.getText().trim());
+            LocalDate dataPrevista = LocalDate.parse(txtDataPrevista.getText().trim());
+            iniciarOperacao(
+                    () -> controller.atualizarEmprestimo(
+                            selecionado.idEmprestimo(), dataEmprestimo, dataPrevista),
+                    "Empréstimo alterado com sucesso!"
+            );
+        } catch (DateTimeParseException | IllegalArgumentException ex) {
+            SwingTask.showError(this, "Dados do empréstimo inválidos", ex);
+        }
+    }
+
+    private void excluir() {
+        EmprestimoRelatorio selecionado = emprestimoSelecionado();
+        if (selecionado == null) {
+            JOptionPane.showMessageDialog(this, "Selecione um empréstimo para excluir ou cancelar.");
+            return;
+        }
+        boolean emAberto = selecionado.dataDevolucao() == null;
+        String mensagem = emAberto
+                ? "Cancelar este empréstimo e liberar o exemplar associado?"
+                : "Excluir este empréstimo finalizado? O registro será removido do histórico.";
+        String titulo = emAberto ? "Confirmar cancelamento" : "Confirmar exclusão";
+        if (JOptionPane.showConfirmDialog(
+                this, mensagem, titulo, JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE
+        ) != JOptionPane.YES_OPTION) {
+            return;
+        }
+        iniciarOperacao(
+                () -> controller.excluirEmprestimo(selecionado.idEmprestimo()),
+                emAberto ? "Empréstimo cancelado com sucesso!"
+                        : "Empréstimo excluído com sucesso!"
+        );
+    }
+
+    private EmprestimoRelatorio emprestimoSelecionado() {
+        int row = tabela.getSelectedRow();
+        if (row < 0) {
+            return null;
+        }
+        int modelRow = tabela.convertRowIndexToModel(row);
+        return modelRow < emprestimos.size() ? emprestimos.get(modelRow) : null;
+    }
+
+    private void carregarEmprestimoSelecionado() {
+        EmprestimoRelatorio selecionado = emprestimoSelecionado();
+        if (selecionado != null) {
+            txtDataEmprestimo.setText(selecionado.dataEmprestimo().toString());
+            txtDataPrevista.setText(selecionado.dataPrevista().toString());
+        }
+        botaoAlterar.setEnabled(selecionado != null && selecionado.dataDevolucao() == null);
+        botaoDevolver.setEnabled(selecionado != null && selecionado.dataDevolucao() == null);
+        botaoExcluir.setEnabled(selecionado != null);
     }
 
     private void iniciarOperacao(SwingTask.SqlOperation operation, String successMessage) {
@@ -221,11 +314,15 @@ public class EmprestimoView extends JPanel {
         return new DadosTela(
                 controller.listarLeitoresAtivos(),
                 controller.listarExemplaresDisponiveis(),
-                controller.listarEmprestimosAtivos()
+                livroController.listarTodos(),
+                controller.listarTodosEmprestimos()
         );
     }
 
     private void exibirDados(DadosTela dados) {
+        tabela.clearSelection();
+        livros = dados.livros();
+        emprestimos = dados.emprestimos();
         comboLeitor.removeAllItems();
         dados.leitores().forEach(comboLeitor::addItem);
         comboExemplar.removeAllItems();
@@ -244,14 +341,98 @@ public class EmprestimoView extends JPanel {
         }
     }
 
+    private void configurarSeletorExemplar() {
+        comboExemplar.setEditable(true);
+        comboExemplar.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(
+                    JList<?> lista,
+                    Object valor,
+                    int indice,
+                    boolean selecionado,
+                    boolean foco
+            ) {
+                super.getListCellRendererComponent(
+                        lista,
+                        valor,
+                        indice,
+                        selecionado,
+                        foco
+                );
+                if (valor instanceof Exemplar exemplar) {
+                    Livro livro = buscarLivro(exemplar.getIdLivro());
+                    String isbn = livro == null || livro.getIsbn() == null
+                            || livro.getIsbn().isBlank()
+                            ? "Sem ISBN"
+                            : livro.getIsbn();
+                    setText(isbn + " - Exemplar: " + exemplar.getCodigo());
+                }
+                return this;
+            }
+        });
+        comboExemplar.setEditor(new BasicComboBoxEditor() {
+            @Override
+            public void setItem(Object item) {
+                if (item instanceof Exemplar exemplar) {
+                    Livro livro = buscarLivro(exemplar.getIdLivro());
+                    editor.setText(livro == null || livro.getIsbn() == null
+                            || livro.getIsbn().isBlank()
+                            ? exemplar.getCodigo()
+                            : livro.getIsbn());
+                } else {
+                    super.setItem(item);
+                }
+            }
+        });
+    }
+
+    private Exemplar obterExemplarInformado() {
+        Object itemEditado = comboExemplar.getEditor().getItem();
+        String valor = itemEditado == null ? "" : itemEditado.toString().trim();
+        if (valor.isEmpty()) {
+            return null;
+        }
+
+        String isbnInformado = valor.replaceAll("[-\\s]", "");
+        for (int i = 0; i < comboExemplar.getItemCount(); i++) {
+            Exemplar exemplar = comboExemplar.getItemAt(i);
+            Livro livro = buscarLivro(exemplar.getIdLivro());
+            if (livro != null && livro.getIsbn() != null
+                    && livro.getIsbn().replaceAll("[-\\s]", "")
+                    .equalsIgnoreCase(isbnInformado)) {
+                return exemplar;
+            }
+            if ((livro == null || livro.getIsbn() == null || livro.getIsbn().isBlank())
+                    && exemplar.getCodigo() != null
+                    && exemplar.getCodigo().equalsIgnoreCase(valor)) {
+                return exemplar;
+            }
+        }
+        return null;
+    }
+
+    private Livro buscarLivro(int idLivro) {
+        return livros.stream()
+                .filter(livro -> livro.getIdLivro() == idLivro)
+                .findFirst()
+                .orElse(null);
+    }
+
     private void definirBotoesAtivos(boolean ativos) {
         botaoEmprestar.setEnabled(ativos);
-        botaoDevolver.setEnabled(ativos);
+        if (!ativos) {
+            botaoDevolver.setEnabled(false);
+            botaoAlterar.setEnabled(false);
+            botaoExcluir.setEnabled(false);
+        } else {
+            carregarEmprestimoSelecionado();
+        }
     }
 
     private record DadosTela(
             List<Leitor> leitores,
             List<Exemplar> exemplares,
+            List<Livro> livros,
             List<EmprestimoRelatorio> emprestimos
     ) {
     }
