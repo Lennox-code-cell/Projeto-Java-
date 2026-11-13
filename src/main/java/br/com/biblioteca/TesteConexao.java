@@ -17,9 +17,7 @@ public class TesteConexao {
                         conexao.getCatalog());
             }
         } catch (SQLException e) {
-            System.out.println("Erro ao conectar ao banco de dados:");
             System.out.println(e.getMessage());
-            e.printStackTrace();
         }
     }
 }

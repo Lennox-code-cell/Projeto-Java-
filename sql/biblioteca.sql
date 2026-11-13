@@ -32,8 +32,10 @@ CREATE TABLE IF NOT EXISTS exemplar (
     id_exemplar INT AUTO_INCREMENT PRIMARY KEY,
     id_livro INT NOT NULL,
     codigo VARCHAR(30) NOT NULL UNIQUE,
-    situacao VARCHAR(15) NOT NULL,
-    CONSTRAINT fk_exemplar_livro FOREIGN KEY (id_livro) REFERENCES livro(id_livro)
+    situacao VARCHAR(15) NOT NULL DEFAULT 'disponivel',
+    CONSTRAINT fk_exemplar_livro FOREIGN KEY (id_livro) REFERENCES livro(id_livro),
+    CONSTRAINT chk_exemplar_situacao
+        CHECK (situacao IN ('disponivel', 'emprestado', 'indisponivel'))
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS leitor (
@@ -53,7 +55,13 @@ CREATE TABLE IF NOT EXISTS emprestimo (
     data_emprestimo DATE NOT NULL,
     data_prevista DATE NOT NULL,
     data_devolucao DATE NULL,
-    situacao VARCHAR(15) NOT NULL,
+    situacao VARCHAR(15) NOT NULL DEFAULT 'ativo',
     CONSTRAINT fk_emprestimo_exemplar FOREIGN KEY (id_exemplar) REFERENCES exemplar(id_exemplar),
-    CONSTRAINT fk_emprestimo_leitor FOREIGN KEY (id_leitor) REFERENCES leitor(id_leitor)
+    CONSTRAINT fk_emprestimo_leitor FOREIGN KEY (id_leitor) REFERENCES leitor(id_leitor),
+    CONSTRAINT chk_emprestimo_situacao
+        CHECK (situacao IN ('ativo', 'atrasado', 'devolvido')),
+    CONSTRAINT chk_emprestimo_datas
+        CHECK (data_prevista >= data_emprestimo
+               AND (data_devolucao IS NULL OR data_devolucao >= data_emprestimo)),
+    INDEX idx_emprestimo_exemplar_aberto (id_exemplar, data_devolucao)
 ) ENGINE=InnoDB;

@@ -1,0 +1,11 @@
+/out/
+/target/D
+/.idea/
+/.env
+/.env.*
+!/.env.example
+*.local.properties
+/config/local.*
+/secrets/
+*.jks
+*.keystore

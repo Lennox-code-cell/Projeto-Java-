@@ -12,7 +12,6 @@ import br.com.biblioteca.view.TelaPrincipal;
 import br.com.biblioteca.dao.EmprestimoDAO;
 
 import java.awt.Color;
-import java.sql.SQLException;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -35,39 +34,58 @@ public class Main {
         if (!FlatLightLaf.setup()) {
             throw new IllegalStateException("Não foi possível iniciar o tema da interface.");
         }
+        Runtime.getRuntime().addShutdownHook(new Thread(
+                SINCRONIZADOR_EMPRESTIMOS::shutdownNow,
+                "encerramento-sincronizador-emprestimos"
+        ));
         UIManager.put("Component.arc", 10);
         UIManager.put("Button.arc", 8);
         UIManager.put("TextComponent.arc", 8);
         UIManager.put("Table.rowHeight", 30);
         UIManager.put("Table.alternateRowColor", new Color(245, 247, 250));
         UIManager.put("Table.showHorizontalLines", true);
-        SwingUtilities.invokeLater(() -> {
-            TelaPrincipal tela = new TelaPrincipal();
-            tela.setVisible(true);
+        SINCRONIZADOR_EMPRESTIMOS.execute(() -> {
+            sincronizarEAgendar();
+            SwingUtilities.invokeLater(Main::mostrarTela);
         });
-        sincronizarSituacoesEAgendar();
     }
 
-    private static void sincronizarSituacoesEAgendar() {
-        SINCRONIZADOR_EMPRESTIMOS.execute(Main::sincronizarSituacoes);
-        agendarProximaSincronizacao();
+    private static void mostrarTela() {
+        TelaPrincipal tela = new TelaPrincipal();
+        tela.setVisible(true);
+    }
+
+    private static void sincronizarEAgendar() {
+        try {
+            sincronizarSituacoes();
+        } finally {
+            agendarProximaSincronizacao();
+        }
     }
 
     private static void agendarProximaSincronizacao() {
-        LocalDateTime agora = LocalDateTime.now();
+        if (SINCRONIZADOR_EMPRESTIMOS.isShutdown()) {
+            return;
+        }
+
         LocalDateTime proximaMeiaNoite = LocalDate.now().plusDays(1).atStartOfDay();
-        long atraso = Duration.between(agora, proximaMeiaNoite).toMillis();
-        SINCRONIZADOR_EMPRESTIMOS.schedule(() -> {
-            sincronizarSituacoes();
-            agendarProximaSincronizacao();
-        }, atraso, TimeUnit.MILLISECONDS);
+        long atraso = Duration.between(LocalDateTime.now(), proximaMeiaNoite).toMillis();
+        SINCRONIZADOR_EMPRESTIMOS.schedule(
+                Main::sincronizarEAgendar,
+                Math.max(atraso, 0),
+                TimeUnit.MILLISECONDS
+        );
     }
 
     private static void sincronizarSituacoes() {
         try {
             new EmprestimoDAO().sincronizarSituacoes();
-        } catch (SQLException ex) {
-            LOGGER.log(Level.SEVERE, "Não foi possível sincronizar empréstimos e exemplares.", ex);
+        } catch (Exception ex) {
+            LOGGER.log(
+                    Level.SEVERE,
+                    "Não foi possível sincronizar empréstimos e exemplares. "
+                            + "Verifique DB_URL, DB_USER, DB_PASSWORD e o servidor MySQL."
+            );
         }
     }
 }

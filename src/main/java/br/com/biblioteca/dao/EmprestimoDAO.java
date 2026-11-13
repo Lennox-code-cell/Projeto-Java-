@@ -12,6 +12,7 @@ import br.com.biblioteca.connection.DatabaseConnection;
 // Importa o modelo que representa um empréstimo.
 import br.com.biblioteca.model.Emprestimo;
 import br.com.biblioteca.model.EmprestimoRelatorio;
+import br.com.biblioteca.model.SituacaoEmprestimo;
 
 // Importa as classes necessárias para executar comandos SQL.
 import java.sql.*;
@@ -459,16 +460,45 @@ public class EmprestimoDAO {
      * relação com os exemplares. Deve ser chamada dentro da transação do chamador.
      */
     static void sincronizarSituacoes(Connection conn) throws SQLException {
-        String atualizarEmprestimos = "UPDATE emprestimo SET situacao = CASE "
-                + "WHEN data_devolucao IS NOT NULL THEN 'devolvido' "
-                + "WHEN data_prevista < CURRENT_DATE THEN 'atrasado' "
-                + "ELSE 'ativo' END "
-                + "WHERE situacao <> CASE "
-                + "WHEN data_devolucao IS NOT NULL THEN 'devolvido' "
-                + "WHEN data_prevista < CURRENT_DATE THEN 'atrasado' "
-                + "ELSE 'ativo' END";
-        try (PreparedStatement stmt = conn.prepareStatement(atualizarEmprestimos)) {
-            stmt.executeUpdate();
+        List<EstadoEmprestimo> estados = new ArrayList<>();
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "SELECT id_emprestimo, data_prevista, data_devolucao, situacao FROM emprestimo");
+             ResultSet rs = stmt.executeQuery()) {
+            while (rs.next()) {
+                Date dataDevolucao = rs.getDate("data_devolucao");
+                estados.add(new EstadoEmprestimo(
+                        rs.getInt("id_emprestimo"),
+                        rs.getDate("data_prevista").toLocalDate(),
+                        dataDevolucao == null ? null : dataDevolucao.toLocalDate(),
+                        rs.getString("situacao")
+                ));
+            }
+        }
+
+        LocalDate hoje = LocalDate.now();
+        String atualizarEmprestimo = "UPDATE emprestimo SET situacao = ? "
+                + "WHERE id_emprestimo = ? AND data_prevista = ? "
+                + "AND data_devolucao <=> ? AND situacao = ?";
+        try (PreparedStatement stmt = conn.prepareStatement(atualizarEmprestimo)) {
+            for (EstadoEmprestimo estado : estados) {
+                String situacaoAtual = SituacaoEmprestimo.calcular(
+                        estado.dataPrevista(), estado.dataDevolucao(), hoje
+                ).valorBanco();
+                if (situacaoAtual.equals(estado.situacao())) {
+                    continue;
+                }
+
+                stmt.setString(1, situacaoAtual);
+                stmt.setInt(2, estado.idEmprestimo());
+                stmt.setDate(3, Date.valueOf(estado.dataPrevista()));
+                if (estado.dataDevolucao() == null) {
+                    stmt.setNull(4, Types.DATE);
+                } else {
+                    stmt.setDate(4, Date.valueOf(estado.dataDevolucao()));
+                }
+                stmt.setString(5, estado.situacao());
+                stmt.executeUpdate();
+            }
         }
 
         String marcarExemplaresEmprestados = "UPDATE exemplar SET situacao = 'emprestado' "
@@ -486,6 +516,14 @@ public class EmprestimoDAO {
         try (PreparedStatement stmt = conn.prepareStatement(liberarExemplaresSemEmprestimo)) {
             stmt.executeUpdate();
         }
+    }
+
+    private record EstadoEmprestimo(
+            int idEmprestimo,
+            LocalDate dataPrevista,
+            LocalDate dataDevolucao,
+            String situacao
+    ) {
     }
 
     public void sincronizarSituacoes() throws SQLException {
