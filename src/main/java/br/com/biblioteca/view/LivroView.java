@@ -58,6 +58,7 @@ public class LivroView extends JPanel {
 
     // Tabela responsável por exibir os livros cadastrados.
     private final JTable tabela = new JTable();
+    private List<Livro> livros = List.of();
 
     // Define as colunas que serão apresentadas na tabela.
     private final DefaultTableModel tableModel = new DefaultTableModel(
@@ -142,6 +143,12 @@ public class LivroView extends JPanel {
         // Posiciona a tabela no centro, com barras de rolagem.
         add(new JScrollPane(tabela), BorderLayout.CENTER);
 
+        tabela.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                carregarLivroSelecionado();
+            }
+        });
+
         // Carrega os autores e categorias nos respectivos combos.
         carregarCombos();
 
@@ -155,11 +162,18 @@ public class LivroView extends JPanel {
 
             // Recupera o Autor selecionado no JComboBox
             // e obtém seu ID para armazenar como chave estrangeira.
-            int idAutor = ((Autor) comboAutor.getSelectedItem()).getIdAutor();
+            Autor autor = (Autor) comboAutor.getSelectedItem();
+            Categoria categoria = (Categoria) comboCategoria.getSelectedItem();
+            if (autor == null || categoria == null) {
+                throw new IllegalArgumentException(
+                        "Cadastre ou selecione um autor e uma categoria."
+                );
+            }
+            int idAutor = autor.getIdAutor();
 
             // Recupera a Categoria selecionada
             // e obtém seu ID para armazenar como chave estrangeira.
-            int idCategoria = ((Categoria) comboCategoria.getSelectedItem()).getIdCategoria();
+            int idCategoria = categoria.getIdCategoria();
 
             // Converte o ano informado para inteiro.
             // Se o campo estiver vazio, utiliza 0 como valor padrão.
@@ -225,15 +239,24 @@ public class LivroView extends JPanel {
         try {
 
             // Recupera o ID do livro na primeira coluna da tabela.
-            int id = Integer.parseInt(
-                    String.valueOf(tabela.getValueAt(row, 0))
-            );
+            Livro selecionado = livroSelecionado();
+            if (selecionado == null) {
+                return;
+            }
+            int id = selecionado.getIdLivro();
 
             // Obtém o ID do autor selecionado.
-            int idAutor = ((Autor) comboAutor.getSelectedItem()).getIdAutor();
+            Autor autor = (Autor) comboAutor.getSelectedItem();
 
             // Obtém o ID da categoria selecionada.
-            int idCategoria = ((Categoria) comboCategoria.getSelectedItem()).getIdCategoria();
+            Categoria categoria = (Categoria) comboCategoria.getSelectedItem();
+            if (autor == null || categoria == null) {
+                throw new IllegalArgumentException(
+                        "Cadastre ou selecione um autor e uma categoria."
+                );
+            }
+            int idAutor = autor.getIdAutor();
+            int idCategoria = categoria.getIdCategoria();
 
             // Converte o ano para inteiro.
             // Caso esteja vazio, utiliza 0.
@@ -303,9 +326,11 @@ public class LivroView extends JPanel {
         try {
 
             // Recupera o ID do livro selecionado.
-            int id = Integer.parseInt(
-                    String.valueOf(tabela.getValueAt(row, 0))
-            );
+            Livro selecionado = livroSelecionado();
+            if (selecionado == null) {
+                return;
+            }
+            int id = selecionado.getIdLivro();
 
             // Solicita ao Controller a exclusão do livro.
             controller.excluir(id);
@@ -374,12 +399,13 @@ public class LivroView extends JPanel {
     private void carregarTabela() {
 
         // Remove todas as linhas existentes antes de carregar novamente.
+        tabela.clearSelection();
         tableModel.setRowCount(0);
 
         try {
 
             // Solicita ao Controller a lista de livros cadastrados.
-            List<Livro> livros = controller.listarTodos();
+            livros = controller.listarTodos();
 
             // Percorre todos os livros retornados.
             for (Livro livro : livros) {
@@ -443,6 +469,46 @@ public class LivroView extends JPanel {
                     "Erro ao carregar dados",
                     JOptionPane.ERROR_MESSAGE
             );
+        }
+    }
+
+    private Livro livroSelecionado() {
+        int row = tabela.getSelectedRow();
+        if (row < 0) {
+            return null;
+        }
+        int modelRow = tabela.convertRowIndexToModel(row);
+        return modelRow < livros.size() ? livros.get(modelRow) : null;
+    }
+
+    private void carregarLivroSelecionado() {
+        Livro livro = livroSelecionado();
+        if (livro == null) {
+            return;
+        }
+        txtTitulo.setText(livro.getTitulo());
+        txtIsbn.setText(livro.getIsbn() == null ? "" : livro.getIsbn());
+        txtAno.setText(Integer.toString(livro.getAnoPublicacao()));
+        txtEditora.setText(livro.getEditora() == null ? "" : livro.getEditora());
+        selecionarAutor(livro.getIdAutor());
+        selecionarCategoria(livro.getIdCategoria());
+    }
+
+    private void selecionarAutor(int idAutor) {
+        for (int i = 0; i < comboAutor.getItemCount(); i++) {
+            if (comboAutor.getItemAt(i).getIdAutor() == idAutor) {
+                comboAutor.setSelectedIndex(i);
+                return;
+            }
+        }
+    }
+
+    private void selecionarCategoria(int idCategoria) {
+        for (int i = 0; i < comboCategoria.getItemCount(); i++) {
+            if (comboCategoria.getItemAt(i).getIdCategoria() == idCategoria) {
+                comboCategoria.setSelectedIndex(i);
+                return;
+            }
         }
     }
 

@@ -31,30 +31,22 @@ public class RelatorioDAO {
         String sql = """
                 SELECT e.id_emprestimo, l.nome, li.titulo, ex.codigo,
                        e.data_emprestimo, e.data_prevista, e.data_devolucao,
-                       CASE WHEN e.data_devolucao IS NOT NULL THEN 'devolvido'
-                            WHEN e.data_prevista < CURRENT_DATE THEN 'atrasado'
-                            ELSE 'ativo' END AS situacao
+                       e.situacao
                 FROM emprestimo e
                 JOIN leitor l ON l.id_leitor = e.id_leitor
                 JOIN exemplar ex ON ex.id_exemplar = e.id_exemplar
                 JOIN livro li ON li.id_livro = ex.id_livro
                 WHERE e.data_emprestimo BETWEEN ? AND ?
-                  AND (? = 'todos'
-                       OR (? = 'devolvido' AND e.data_devolucao IS NOT NULL)
-                       OR (? = 'atrasado' AND e.data_devolucao IS NULL
-                           AND e.data_prevista < CURRENT_DATE)
-                       OR (? = 'ativo' AND e.data_devolucao IS NULL
-                           AND e.data_prevista >= CURRENT_DATE))
+                  AND (? = 'todos' OR e.situacao = ?)
                 ORDER BY e.data_emprestimo DESC, e.id_emprestimo DESC
                 """;
+        new EmprestimoDAO().sincronizarSituacoes();
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setDate(1, java.sql.Date.valueOf(inicio));
             stmt.setDate(2, java.sql.Date.valueOf(fim));
             stmt.setString(3, situacao);
             stmt.setString(4, situacao);
-            stmt.setString(5, situacao);
-            stmt.setString(6, situacao);
             try (java.sql.ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     java.sql.Date dataDevolucao = rs.getDate("data_devolucao");

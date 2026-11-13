@@ -45,6 +45,7 @@ public class ExemplarView extends JPanel {
 
     // Tabela responsável por exibir os exemplares cadastrados.
     private final JTable tabela = new JTable();
+    private List<Exemplar> exemplares = List.of();
 
     // Modelo que define as colunas da tabela.
     private final DefaultTableModel tableModel = new DefaultTableModel(
@@ -131,6 +132,11 @@ public class ExemplarView extends JPanel {
 
                 // Preenche o campo de situação com o valor da coluna 3.
                 txtSituacao.setText(String.valueOf(tabela.getValueAt(row, 3)));
+
+                Exemplar selecionado = exemplarSelecionado();
+                if (selecionado != null) {
+                    selecionarLivro(selecionado.getIdLivro());
+                }
             }
         });
     }
@@ -209,9 +215,11 @@ public class ExemplarView extends JPanel {
             Livro livro = obterLivroInformado();
 
             // Recupera o ID do exemplar na primeira coluna da tabela.
-            int id = Integer.parseInt(
-                    String.valueOf(tabela.getValueAt(row, 0))
-            );
+            Exemplar selecionado = exemplarSelecionado();
+            if (selecionado == null) {
+                return;
+            }
+            int id = selecionado.getIdExemplar();
 
             // Verifica se algum livro foi selecionado.
             if (livro == null) {
@@ -281,9 +289,11 @@ public class ExemplarView extends JPanel {
         try {
 
             // Recupera o ID do exemplar selecionado.
-            int id = Integer.parseInt(
-                    String.valueOf(tabela.getValueAt(row, 0))
-            );
+            Exemplar selecionado = exemplarSelecionado();
+            if (selecionado == null) {
+                return;
+            }
+            int id = selecionado.getIdExemplar();
 
             // Solicita ao Controller a exclusão do exemplar.
             controller.excluir(id);
@@ -409,16 +419,35 @@ public class ExemplarView extends JPanel {
         return null;
     }
 
+    private Exemplar exemplarSelecionado() {
+        int row = tabela.getSelectedRow();
+        if (row < 0) {
+            return null;
+        }
+        int modelRow = tabela.convertRowIndexToModel(row);
+        return modelRow < exemplares.size() ? exemplares.get(modelRow) : null;
+    }
+
+    private void selecionarLivro(int idLivro) {
+        for (int i = 0; i < comboLivro.getItemCount(); i++) {
+            if (comboLivro.getItemAt(i).getIdLivro() == idLivro) {
+                comboLivro.setSelectedIndex(i);
+                return;
+            }
+        }
+    }
+
     // Método responsável por carregar os exemplares na tabela.
     private void carregarTabela() {
 
         // Remove todas as linhas atuais da tabela.
+        tabela.clearSelection();
         tableModel.setRowCount(0);
 
         try {
 
             // Consulta todos os exemplares cadastrados.
-            List<Exemplar> exemplares = controller.listarTodos();
+            exemplares = controller.listarTodos();
 
             // Percorre a lista de exemplares retornada pelo Controller.
             for (Exemplar exemplar : exemplares) {

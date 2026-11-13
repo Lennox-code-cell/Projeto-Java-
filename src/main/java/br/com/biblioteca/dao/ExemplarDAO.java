@@ -47,6 +47,7 @@ public class ExemplarDAO {
 
     // Retorna todos os exemplares cadastrados no banco.
     public List<Exemplar> listarTodos() throws SQLException {
+        new EmprestimoDAO().sincronizarSituacoes();
 
         // Cria uma lista vazia para armazenar os exemplares encontrados.
         List<Exemplar> exemplares = new ArrayList<>();
@@ -81,6 +82,7 @@ public class ExemplarDAO {
 
     // Retorna somente os exemplares que estão disponíveis para empréstimo.
     public List<Exemplar> listarDisponiveis() throws SQLException {
+        new EmprestimoDAO().sincronizarSituacoes();
 
         // Lista que armazenará os exemplares disponíveis.
         List<Exemplar> exemplares = new ArrayList<>();
@@ -117,6 +119,7 @@ public class ExemplarDAO {
 
     // Verifica se determinado exemplar está disponível para empréstimo.
     public boolean exemplarDisponivel(int idExemplar) throws SQLException {
+        new EmprestimoDAO().sincronizarSituacoes();
 
         // Conta quantos registros correspondem ao ID informado
         // e possuem situação igual a "disponivel".

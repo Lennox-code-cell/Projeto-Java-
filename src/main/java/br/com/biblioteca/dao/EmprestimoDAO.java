@@ -48,6 +48,7 @@ public class EmprestimoDAO {
         try (Connection conn = DatabaseConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
+                sincronizarSituacoes(conn);
                 try (PreparedStatement stmt = conn.prepareStatement(
                         "SELECT ativo FROM leitor WHERE id_leitor = ? FOR UPDATE")) {
                     stmt.setInt(1, emprestimo.getIdLeitor());
@@ -80,6 +81,7 @@ public class EmprestimoDAO {
                     stmt.setDate(4, Date.valueOf(emprestimo.getDataPrevista()));
                     stmt.executeUpdate();
                 }
+                sincronizarSituacoes(conn);
                 conn.commit();
             } catch (SQLException | RuntimeException ex) {
                 rollback(conn, ex);
@@ -95,6 +97,7 @@ public class EmprestimoDAO {
      * @throws SQLException Caso ocorra um erro na consulta.
      */
     public List<Emprestimo> listarTodos() throws SQLException {
+        sincronizarSituacoes();
 
         // Cria uma lista vazia para armazenar os empréstimos.
         List<Emprestimo> emprestimos = new ArrayList<>();
@@ -104,49 +107,49 @@ public class EmprestimoDAO {
         String sql = "SELECT * FROM emprestimo ORDER BY data_emprestimo DESC";
 
         // Abre a conexão, prepara e executa a consulta.
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement(sql);
+                 ResultSet rs = stmt.executeQuery()) {
+                // Percorre todos os registros encontrados.
+                while (rs.next()) {
 
-            // Percorre todos os registros encontrados.
-            while (rs.next()) {
+                    // Cria um objeto Emprestimo para representar cada registro.
+                    Emprestimo emprestimo = new Emprestimo();
 
-                // Cria um objeto Emprestimo para representar cada registro.
-                Emprestimo emprestimo = new Emprestimo();
+                    // Recupera o ID do empréstimo.
+                    emprestimo.setIdEmprestimo(rs.getInt("id_emprestimo"));
 
-                // Recupera o ID do empréstimo.
-                emprestimo.setIdEmprestimo(rs.getInt("id_emprestimo"));
+                    // Recupera o ID do exemplar emprestado.
+                    emprestimo.setIdExemplar(rs.getInt("id_exemplar"));
 
-                // Recupera o ID do exemplar emprestado.
-                emprestimo.setIdExemplar(rs.getInt("id_exemplar"));
+                    // Recupera o ID do leitor responsável.
+                    emprestimo.setIdLeitor(rs.getInt("id_leitor"));
 
-                // Recupera o ID do leitor responsável.
-                emprestimo.setIdLeitor(rs.getInt("id_leitor"));
+                    // Recupera a data do empréstimo e converte para LocalDate.
+                    emprestimo.setDataEmprestimo(
+                            rs.getDate("data_emprestimo").toLocalDate()
+                    );
 
-                // Recupera a data do empréstimo e converte para LocalDate.
-                emprestimo.setDataEmprestimo(
-                        rs.getDate("data_emprestimo").toLocalDate()
-                );
+                    // Recupera a data prevista para devolução.
+                    emprestimo.setDataPrevista(
+                            rs.getDate("data_prevista").toLocalDate()
+                    );
 
-                // Recupera a data prevista para devolução.
-                emprestimo.setDataPrevista(
-                        rs.getDate("data_prevista").toLocalDate()
-                );
+                    // Recupera a data de devolução.
+                    Date dataDevolucao = rs.getDate("data_devolucao");
 
-                // Recupera a data de devolução.
-                Date dataDevolucao = rs.getDate("data_devolucao");
+                    // Se a data existir, converte para LocalDate.
+                    // Caso contrário, mantém o valor como null.
+                    emprestimo.setDataDevolucao(
+                            dataDevolucao != null ? dataDevolucao.toLocalDate() : null
+                    );
 
-                // Se a data existir, converte para LocalDate.
-                // Caso contrário, mantém o valor como null.
-                emprestimo.setDataDevolucao(
-                        dataDevolucao != null ? dataDevolucao.toLocalDate() : null
-                );
+                    // Recupera a situação sincronizada com as datas do empréstimo.
+                    emprestimo.setSituacao(rs.getString("situacao"));
 
-                // Recupera a situação do empréstimo.
-                emprestimo.setSituacao(rs.getString("situacao"));
-
-                // Adiciona o objeto preenchido à lista.
-                emprestimos.add(emprestimo);
+                    // Adiciona o objeto preenchido à lista.
+                    emprestimos.add(emprestimo);
+                }
             }
         }
 
@@ -162,12 +165,12 @@ public class EmprestimoDAO {
      * @throws SQLException Caso ocorra um erro na consulta.
      */
     public List<EmprestimoRelatorio> listarAtivos() throws SQLException {
+        sincronizarSituacoes();
         List<EmprestimoRelatorio> lista = new ArrayList<>();
         String sql = """
                 SELECT e.id_emprestimo, l.nome, li.titulo, ex.codigo,
                        e.data_emprestimo, e.data_prevista, e.data_devolucao,
-                       CASE WHEN e.data_prevista < CURRENT_DATE
-                            THEN 'atrasado' ELSE 'ativo' END AS situacao
+                       e.situacao
                 FROM emprestimo e
                 JOIN leitor l ON l.id_leitor = e.id_leitor
                 JOIN exemplar ex ON ex.id_exemplar = e.id_exemplar
@@ -175,11 +178,12 @@ public class EmprestimoDAO {
                 WHERE e.data_devolucao IS NULL
                 ORDER BY e.data_prevista, e.data_emprestimo DESC
                 """;
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
-            while (rs.next()) {
-                lista.add(mapearRelatorio(rs));
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement(sql);
+                 ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    lista.add(mapearRelatorio(rs));
+                }
             }
         }
         return lista;
@@ -212,6 +216,7 @@ public class EmprestimoDAO {
         try (Connection conn = DatabaseConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
+                sincronizarSituacoes(conn);
                 int idExemplar;
                 try (PreparedStatement stmt = conn.prepareStatement(
                         "SELECT id_exemplar FROM emprestimo "
@@ -245,10 +250,9 @@ public class EmprestimoDAO {
                     stmt.setDate(1, Date.valueOf(emprestimo.getDataEmprestimo()));
                     stmt.setDate(2, Date.valueOf(emprestimo.getDataPrevista()));
                     stmt.setInt(3, emprestimo.getIdEmprestimo());
-                    if (stmt.executeUpdate() > 1) {
-                        throw new SQLException("Empréstimo inexistente ou já finalizado.");
-                    }
+                    stmt.executeUpdate();
                 }
+                sincronizarSituacoes(conn);
                 conn.commit();
             } catch (SQLException | RuntimeException ex) {
                 rollback(conn, ex);
@@ -271,6 +275,7 @@ public class EmprestimoDAO {
         try (Connection conn = DatabaseConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
+                sincronizarSituacoes(conn);
                 int idExemplar;
                 boolean emAberto;
                 try (PreparedStatement stmt = conn.prepareStatement(
@@ -334,6 +339,7 @@ public class EmprestimoDAO {
                         }
                     }
                 }
+                sincronizarSituacoes(conn);
                 conn.commit();
             } catch (SQLException | RuntimeException ex) {
                 rollback(conn, ex);
@@ -344,22 +350,21 @@ public class EmprestimoDAO {
 
     /** Consulta empréstimos finalizados e em aberto para a tela de gerenciamento. */
     public List<EmprestimoRelatorio> listarTodosDetalhados() throws SQLException {
+        sincronizarSituacoes();
         List<EmprestimoRelatorio> lista = new ArrayList<>();
         String sql = "SELECT e.id_emprestimo, l.nome, li.titulo, ex.codigo, "
-                + "e.data_emprestimo, e.data_prevista, e.data_devolucao, "
-                + "CASE WHEN e.data_devolucao IS NOT NULL THEN 'devolvido' "
-                + "WHEN e.data_prevista < CURRENT_DATE THEN 'atrasado' "
-                + "ELSE 'ativo' END AS situacao "
+                + "e.data_emprestimo, e.data_prevista, e.data_devolucao, e.situacao "
                 + "FROM emprestimo e "
                 + "JOIN leitor l ON l.id_leitor = e.id_leitor "
                 + "JOIN exemplar ex ON ex.id_exemplar = e.id_exemplar "
                 + "JOIN livro li ON li.id_livro = ex.id_livro "
                 + "ORDER BY e.data_emprestimo DESC, e.id_emprestimo DESC";
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
-            while (rs.next()) {
-                lista.add(mapearRelatorio(rs));
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            try (PreparedStatement stmt = conn.prepareStatement(sql);
+                 ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    lista.add(mapearRelatorio(rs));
+                }
             }
         }
         return lista;
@@ -385,6 +390,7 @@ public class EmprestimoDAO {
         try (Connection conn = DatabaseConnection.getConnection()) {
             conn.setAutoCommit(false);
             try {
+                sincronizarSituacoes(conn);
                 int idExemplar;
                 LocalDate dataEmprestimo;
                 try (PreparedStatement stmt = conn.prepareStatement(
@@ -439,6 +445,54 @@ public class EmprestimoDAO {
                         );
                     }
                 }
+                sincronizarSituacoes(conn);
+                conn.commit();
+            } catch (SQLException | RuntimeException ex) {
+                rollback(conn, ex);
+                throw ex;
+            }
+        }
+    }
+
+    /**
+     * Sincroniza as situações persistidas com as datas dos empréstimos e sua
+     * relação com os exemplares. Deve ser chamada dentro da transação do chamador.
+     */
+    static void sincronizarSituacoes(Connection conn) throws SQLException {
+        String atualizarEmprestimos = "UPDATE emprestimo SET situacao = CASE "
+                + "WHEN data_devolucao IS NOT NULL THEN 'devolvido' "
+                + "WHEN data_prevista < CURRENT_DATE THEN 'atrasado' "
+                + "ELSE 'ativo' END "
+                + "WHERE situacao <> CASE "
+                + "WHEN data_devolucao IS NOT NULL THEN 'devolvido' "
+                + "WHEN data_prevista < CURRENT_DATE THEN 'atrasado' "
+                + "ELSE 'ativo' END";
+        try (PreparedStatement stmt = conn.prepareStatement(atualizarEmprestimos)) {
+            stmt.executeUpdate();
+        }
+
+        String marcarExemplaresEmprestados = "UPDATE exemplar SET situacao = 'emprestado' "
+                + "WHERE situacao <> 'emprestado' AND EXISTS ("
+                + "SELECT 1 FROM emprestimo WHERE emprestimo.id_exemplar = exemplar.id_exemplar "
+                + "AND emprestimo.data_devolucao IS NULL)";
+        try (PreparedStatement stmt = conn.prepareStatement(marcarExemplaresEmprestados)) {
+            stmt.executeUpdate();
+        }
+
+        String liberarExemplaresSemEmprestimo = "UPDATE exemplar SET situacao = 'disponivel' "
+                + "WHERE situacao = 'emprestado' AND NOT EXISTS ("
+                + "SELECT 1 FROM emprestimo WHERE emprestimo.id_exemplar = exemplar.id_exemplar "
+                + "AND emprestimo.data_devolucao IS NULL)";
+        try (PreparedStatement stmt = conn.prepareStatement(liberarExemplaresSemEmprestimo)) {
+            stmt.executeUpdate();
+        }
+    }
+
+    public void sincronizarSituacoes() throws SQLException {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                sincronizarSituacoes(conn);
                 conn.commit();
             } catch (SQLException | RuntimeException ex) {
                 rollback(conn, ex);
