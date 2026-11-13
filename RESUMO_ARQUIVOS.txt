@@ -1,244 +1,43 @@
-RESUMO DOS ARQUIVOS DO PROJETO BIBLIOTECA
-=========================================
+# Mapa do projeto Biblioteca
 
-Este documento descreve os arquivos de código-fonte, testes, scripts e
-configuracao do projeto. As pastas out/ e target/ contem arquivos gerados
-durante a compilacao; nao sao codigo-fonte. A pasta .idea/ contem configuracoes
-locais do IntelliJ IDEA e nao faz parte do funcionamento da aplicacao.
+Este arquivo é um índice de navegação do repositório. Para instruções de instalação, configuração e execução, consulte o [README.md](README.md) em português ou o [README.en.md](README.en.md) em inglês.
 
-VISAO GERAL
------------
-O projeto e um sistema desktop de biblioteca escrito em Java. A interface e
-feita com Swing. A organizacao segue MVC:
+## Arquivos da raiz
 
-- model: classes que representam os dados do sistema.
-- view: telas e componentes visuais.
-- controller: validacoes e coordenacao das operacoes.
-- dao: comandos JDBC que consultam e alteram o banco MariaDB.
+- `pom.xml`: configuração Maven, Java 25, dependências e plugins.
+- `README.md`: apresentação e instruções em português.
+- `README.en.md`: apresentação e instruções em inglês.
+- `.gitignore`: exclusões de arquivos locais e artefatos gerados.
+- `run.bat`: execução da aplicação no Windows via Maven.
+- `build.cmd`: compilação e empacotamento no Windows via Maven.
 
-ARQUIVOS NA RAIZ
-----------------
+## Código-fonte
 
-pom.xml
-Define o projeto Maven: nome, versao, Java 25, bibliotecas e plugins. Inclui o
-driver MariaDB, o tema FlatLaf, JUnit 5 para testes e o plugin para executar a
-aplicacao. Configura out/ como pasta de compilacao.
+Local: `src/main/java/br/com/biblioteca/`
 
-README.md
-Apresenta o projeto, sua estrutura, requisitos e instrucoes de banco de dados,
-compilacao, testes e execucao.
+- `Main.java`: ponto de entrada da aplicação.
+- `connection/`: conexão JDBC e configuração do banco.
+- `controller/`: validação e coordenação das operações.
+- `dao/`: consultas e persistência JDBC.
+- `model/`: entidades e objetos do domínio.
+- `util/`: validações e utilitários.
+- `view/`: telas e componentes Swing.
+- `TesteConexao.java`: utilitário de diagnóstico de conexão.
 
-run.bat
-Script do Windows para iniciar a aplicacao pela meta exec do Maven. Se o Maven
-nao estiver no PATH do terminal, tenta localizar a instalacao em
-%USERPROFILE%\tools\apache-maven-3.10.0.
+## Testes
 
-build.cmd
-Script do Windows para executar clean package pelo Maven. Usa a mesma busca
-alternativa do Maven usada por run.bat e mostra se a compilacao passou ou falhou.
+Local: `src/test/java/br/com/biblioteca/`
 
-.gitignore
-Informa ao Git quais arquivos nao devem ser versionados, como saidas de
-compilacao, metadados de IDE, bibliotecas locais, logs e arquivos do sistema.
+Os testes automatizados cobrem validações e regras selecionadas dos controllers. Consulte os arquivos de teste para conhecer a cobertura efetiva.
 
-gerar_catalogo_biblioteca_openlibrary.py
-Consulta a API publica Open Library, seleciona registros com titulo, autor e
-ISBN-13 valido, e gera o arquivo SQL importar_2000_livros.sql com comandos para
-adicionar autores, categorias, livros e cinco exemplares por livro. O script
-gera um arquivo SQL; nao conecta nem grava diretamente no banco. Precisa de
-acesso a internet para consultar a API.
+## Banco de dados
 
-BANCO DE DADOS
---------------
+- `sql/biblioteca.sql`: criação inicial do schema e das tabelas.
+- `sql/migration_001_indexes.sql`: migração opcional de índice para consultas por data.
 
-sql/biblioteca.sql
-Script inicial que cria o banco biblioteca, as tabelas de autores, categorias,
-livros, exemplares, leitores e emprestimos, seus relacionamentos e alguns
-registros de exemplo. Foi feito para preparar uma instalacao nova; revise antes
-de executar em um banco existente.
+**Importante:** o script `sql/biblioteca.sql` cria a estrutura, mas não contém comandos `INSERT`. Os dados de demonstração precisam ser preparados separadamente. Não confunda dados existentes em uma instalação local com dados versionados neste repositório.
 
-sql/migration_001_indexes.sql
-Migracao opcional que cria um indice na data do emprestimo para ajudar consultas
-de relatorios por periodo. Deve ser aplicada uma unica vez, conforme indicado
-nos comentarios do proprio arquivo.
+## Documentação adicional
 
-INICIO E CONEXAO
-----------------
-
-src/main/java/br/com/biblioteca/Main.java
-Ponto de entrada da aplicacao. Configura o tema claro FlatLaf, ajusta alguns
-detalhes visuais do Swing e abre a janela TelaPrincipal.
-
-src/main/java/br/com/biblioteca/TesteConexao.java
-Programa auxiliar para testar a conexao com o banco e informar o catalogo
-conectado. Se houver erro, imprime os detalhes da excecao.
-
-src/main/java/br/com/biblioteca/connection/DatabaseConnection.java
-Centraliza a criacao da conexao JDBC com o banco MariaDB. As configuracoes de
-URL, usuario e senha estao definidas diretamente nesta classe.
-
-MODELOS (MODEL)
----------------
-
-src/main/java/br/com/biblioteca/model/Autor.java
-Representa um autor com identificador, nome e nacionalidade. Fornece
-construtores, getters/setters e seu nome para exibicao em componentes Swing.
-
-src/main/java/br/com/biblioteca/model/Categoria.java
-Representa uma categoria de livros com identificador, nome e descricao. Inclui
-acessores e retorna o nome quando exibida como texto.
-
-src/main/java/br/com/biblioteca/model/Livro.java
-Representa um livro com titulo, ISBN, ano, editora e os identificadores do
-autor e da categoria associados.
-
-src/main/java/br/com/biblioteca/model/Exemplar.java
-Representa uma copia fisica de um livro. Guarda o identificador do livro, o
-codigo da copia e sua situacao, como disponivel ou indisponivel.
-
-src/main/java/br/com/biblioteca/model/Leitor.java
-Representa uma pessoa cadastrada para utilizar a biblioteca, incluindo nome,
-CPF, telefone, email, endereco e estado ativo/inativo.
-
-src/main/java/br/com/biblioteca/model/Emprestimo.java
-Representa um emprestimo, relacionando leitor e exemplar e guardando datas de
-emprestimo, devolucao prevista e devolucao realizada, alem da situacao.
-
-src/main/java/br/com/biblioteca/model/EmprestimoRelatorio.java
-Record imutavel que agrupa os dados ja preparados para as tabelas de emprestimos
-e relatorios: leitor, livro, exemplar, datas e situacao.
-
-VALIDACOES E CONTROLLERS
-------------------------
-
-src/main/java/br/com/biblioteca/util/Validacoes.java
-Centraliza verificacoes e normalizacoes reutilizaveis. Valida digitos
-verificadores de CPF, formatos opcionais de email e telefone, e ISBN-10/ISBN-13.
-
-src/main/java/br/com/biblioteca/controller/AutorController.java
-Valida o nome do autor e encaminha cadastro, consulta, atualizacao e exclusao
-para AutorDAO.
-
-src/main/java/br/com/biblioteca/controller/CategoriaController.java
-Valida o nome da categoria, prepara os dados e encaminha as operacoes de
-cadastro, consulta, atualizacao e exclusao para CategoriaDAO.
-
-src/main/java/br/com/biblioteca/controller/LivroController.java
-Valida titulo, ano e associacoes de autor/categoria; normaliza o ISBN; e
-encaminha as operacoes de livros para LivroDAO.
-
-src/main/java/br/com/biblioteca/controller/ExemplarController.java
-Valida o livro associado, o codigo e a situacao permitida do exemplar. Encaminha
-cadastro, consulta, atualizacao, exclusao e consulta de exemplares disponiveis
-para ExemplarDAO.
-
-src/main/java/br/com/biblioteca/controller/LeitorController.java
-Valida nome, CPF, telefone e email, cria leitores ativos e coordena as operacoes
-de cadastro, consulta, atualizacao e exclusao usando LeitorDAO.
-
-src/main/java/br/com/biblioteca/controller/EmprestimoController.java
-Valida identificadores e datas, coordena o registro de emprestimos e
-devolucoes, e fornece listas de leitores ativos, exemplares disponiveis e
-emprestimos ativos para a tela.
-
-src/main/java/br/com/biblioteca/controller/RelatorioController.java
-Valida o periodo e a situacao solicitados e pede ao RelatorioDAO os emprestimos
-que correspondem aos filtros.
-
-ACESSO A DADOS (DAO)
---------------------
-
-src/main/java/br/com/biblioteca/dao/AutorDAO.java
-Executa comandos JDBC para inserir, listar, atualizar e excluir autores.
-
-src/main/java/br/com/biblioteca/dao/CategoriaDAO.java
-Executa comandos JDBC para inserir, listar, atualizar e excluir categorias.
-
-src/main/java/br/com/biblioteca/dao/LivroDAO.java
-Executa comandos JDBC para inserir, listar, atualizar e excluir livros,
-incluindo seus vinculos com autor e categoria.
-
-src/main/java/br/com/biblioteca/dao/ExemplarDAO.java
-Executa comandos JDBC para gerenciar exemplares e consultar disponibilidade.
-Protege exemplares que tenham emprestimo ativo ou historico quando uma alteracao
-puder comprometer os registros de emprestimos.
-
-src/main/java/br/com/biblioteca/dao/LeitorDAO.java
-Executa comandos JDBC para inserir, listar, atualizar e excluir leitores, alem
-de fornecer uma consulta resumida dos leitores ativos.
-
-src/main/java/br/com/biblioteca/dao/EmprestimoDAO.java
-Gerencia emprestimos no banco: registra emprestimos e devolucoes, consulta
-registros e emprestimos ativos, e atualiza dados permitidos. Usa transacoes
-para manter sincronizados o emprestimo e a situacao do exemplar.
-
-src/main/java/br/com/biblioteca/dao/RelatorioDAO.java
-Consulta emprestimos por periodo e situacao, juntando dados de leitor, livro e
-exemplar e montando objetos EmprestimoRelatorio. Calcula se cada emprestimo esta
-ativo, atrasado ou devolvido.
-
-TELAS E COMPONENTES (VIEW)
---------------------------
-
-src/main/java/br/com/biblioteca/view/TelaPrincipal.java
-Monta a janela principal e suas abas: Autores, Categorias, Leitores, Livros,
-Exemplares, Emprestimos e Relatorios.
-
-src/main/java/br/com/biblioteca/view/AutorView.java
-Tela para cadastrar, listar, selecionar, atualizar e excluir autores.
-
-src/main/java/br/com/biblioteca/view/CategoriaView.java
-Tela para cadastrar, listar, selecionar, atualizar e excluir categorias.
-
-src/main/java/br/com/biblioteca/view/LeitorView.java
-Tela para cadastrar e administrar leitores, exibindo dados pessoais e sua
-situacao ativo/inativo.
-
-src/main/java/br/com/biblioteca/view/LivroView.java
-Tela para cadastrar e administrar livros. Carrega autores e categorias em listas
-de selecao e mostra os dados bibliograficos em uma tabela.
-
-src/main/java/br/com/biblioteca/view/ExemplarView.java
-Tela para cadastrar e administrar copias fisicas. Permite associar cada copia a
-um livro e consultar sua situacao.
-
-src/main/java/br/com/biblioteca/view/EmprestimoView.java
-Tela para registrar emprestimos e devolucoes. Mostra leitores ativos, exemplares
-disponiveis e emprestimos em aberto, incluindo os atrasados.
-
-src/main/java/br/com/biblioteca/view/RelatorioView.java
-Tela para gerar relatorios por data inicial, data final e situacao; apresenta
-leitor, livro, exemplar, datas e total de registros encontrados.
-
-src/main/java/br/com/biblioteca/view/Dialogos.java
-Componente auxiliar que exibe uma confirmacao antes de excluir um registro.
-
-src/main/java/br/com/biblioteca/view/StatusCellRenderer.java
-Personaliza as cores das celulas de situacao em tabelas para diferenciar itens
-disponiveis, emprestados, ativos, atrasados e indisponiveis.
-
-src/main/java/br/com/biblioteca/view/SwingTask.java
-Executa tarefas demoradas, como consultas ao banco, em segundo plano usando
-SwingWorker para evitar travar a interface. Tambem apresenta mensagens de erro.
-
-TESTES AUTOMATIZADOS
---------------------
-
-src/test/java/br/com/biblioteca/util/ValidacoesTest.java
-Testa validacao e normalizacao de CPF e ISBN, e as validacoes de email e
-telefone, incluindo casos validos e invalidos.
-
-src/test/java/br/com/biblioteca/controller/EmprestimoControllerTest.java
-Testa se o controller rejeita IDs incorretos e datas ausentes, futuras ou
-invertidas antes de tentar acessar o banco.
-
-src/test/java/br/com/biblioteca/controller/RelatorioControllerTest.java
-Testa se o controller rejeita periodos ausentes ou invertidos e situacoes
-desconhecidas antes de consultar o banco.
-
-FLUXO RESUMIDO
---------------
-O usuario interage com uma tela (view). A tela chama o controller, que valida
-os dados e chama o DAO. O DAO usa DatabaseConnection para acessar o MariaDB e
-converte os registros para objetos do model. Os resultados retornam a tela para
-serem apresentados.
+- `docs/architecture.md`: responsabilidades das camadas e fluxo da aplicação.
+- `docs/database.md`: tabelas, relacionamentos e cuidados com scripts SQL.
